@@ -23,16 +23,31 @@ Sample test script
 """
 
 from json import loads
+from logging import getLogger
 from typing import Dict, List
 
 from ceph.ceph import Ceph, CephNode, CommandFailed
 from ceph.utils import get_nodes_by_ids
-from utility.log import Log
+from utility import log as log_utils
 
-LOG = Log(__name__)
+# This variable is used to store the test errors.
+test_errors = []
+
+# Start with the root logger before it is modified by log_method.
+LOG = getLogger()
+
 RPMS = ["firewalld"]
 WR_FILE = "warp_Linux_x86_64.rpm"
 WR_URL = f"https://github.com/minio/warp/releases/download/v0.6.8/{WR_FILE}"
+
+
+def configure_logger(file_name) -> None:
+    """Configures the logger."""
+    global LOG
+
+    _name = log_utils.get_log_name(__name__)
+    LOG = getLogger(_name)
+
 
 
 def install(nodes: List[CephNode]) -> None:
@@ -145,7 +160,9 @@ def run(ceph_cluster: Ceph, **kwargs) -> int:
     Returns:
         0 on Success and 1 on Failure.
     """
+    configure_logger()
     LOG.info("Being WARP deploy and configuration workflow.")
+
     client = ceph_cluster.get_nodes(role="installer")[0]
     warp_server = get_nodes_by_ids(ceph_cluster, kwargs["config"]["warp_server"])
     warp_clients = get_nodes_by_ids(
@@ -165,6 +182,7 @@ def run(ceph_cluster: Ceph, **kwargs) -> int:
                 start_warp_client(client, port)
 
     except BaseException as be:  # noqa
+        test_errors.append(str(be))
         LOG.error(be)
         return 1
 
